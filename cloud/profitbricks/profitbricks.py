@@ -183,6 +183,7 @@ import re
 import uuid
 import time
 import json
+import sys
 
 try:
     from profitbricks.client import ProfitBricksService, Volume, Server, Datacenter, NIC, LAN
