@@ -22,52 +22,49 @@
 #Functions
 Function UserSearch
 {
-    Param ([string]$AccountName)
+    Param ([string]$accountName)
     #Check if there's a realm specified
-    if ($AccountName.Split("\").count -gt 1)
-    {
-        if ($AccountName.Split("\")[0] -eq $env:COMPUTERNAME)
-        {
-            $IsLocalAccount = $true
-        }
-        Else
-        {
-            $IsDomainAccount = $true
-            $IsUpn = $false
-        }
 
-    }
-    Elseif ($AccountName.contains("@"))
+    $searchDomain = $false
+    $searchDomainUPN = $false
+    if ($accountName.Split("\").count -gt 1)
     {
-        $IsDomainAccount = $true
-        $IsUpn = $true
+        if ($accountName.Split("\")[0] -ne $env:COMPUTERNAME)
+        {
+            $searchDomain = $true
+            $accountName = $accountName.split("\")[1]
+        }
+    }
+    Elseif ($accountName.contains("@"))
+    {
+        $searchDomain = $true
+        $searchDomainUPN = $true
     }
     Else
     {
         #Default to local user account
-        $accountname = $env:COMPUTERNAME + "\" + $AccountName
-        $IsLocalAccount = $true
+        $accountName = $env:COMPUTERNAME + "\" + $accountName
     }
 
-    if ($IsLocalAccount -eq $true)
+    if ($searchDomain -eq $false)
     {
         # do not use Win32_UserAccount, because e.g. SYSTEM (BUILTIN\SYSTEM or COMPUUTERNAME\SYSTEM) will not be listed. on Win32_Account groups will be listed too
-        $localaccount = get-wmiobject -class "Win32_Account" -namespace "root\CIMV2" -filter "(LocalAccount = True)" | where {$_.Caption -eq $AccountName}
+        $localaccount = get-wmiobject -class "Win32_Account" -namespace "root\CIMV2" -filter "(LocalAccount = True)" | where {$_.Caption -eq $accountName}
         if ($localaccount)
         {
             return $localaccount.SID
         }
     }
-    ElseIf ($IsDomainAccount -eq $true)
+    Else
     {
         #Search by samaccountname
         $Searcher = [adsisearcher]""
 
-        If ($IsUpn -eq $false) {
-            $Searcher.Filter = "sAMAccountName=$($accountname.split("\")[1])"
+        If ($searchDomainUPN -eq $false) {
+            $Searcher.Filter = "sAMAccountName=$($accountName)"
         }
         Else {
-            $Searcher.Filter = "userPrincipalName=$($accountname)"
+            $Searcher.Filter = "userPrincipalName=$($accountName)"
         }
 
         $result = $Searcher.FindOne()
