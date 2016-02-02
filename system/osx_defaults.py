@@ -277,6 +277,8 @@ class OSXDefaults(object):
             print "Absent state detected!"
             if self.current_value is None:
                 return False
+            if self.module.check_mode:
+                return True
             self.delete()
             return True
 
@@ -293,6 +295,9 @@ class OSXDefaults(object):
                 return False
         elif self.current_value == self.value:
             return False
+
+        if self.module.check_mode:
+            return True
 
         # Change/Create/Set given key/value for domain in defaults
         self.write()
