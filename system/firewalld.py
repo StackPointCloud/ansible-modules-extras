@@ -52,11 +52,12 @@ options:
       - 'The firewalld zone to add/remove to/from (NOTE: default zone can be configured per system but "public" is default from upstream. Available choices can be extended based on per-system configs, listed here are "out of the box" defaults).'
     required: false
     default: system-default(public)
-    choices: [ "work", "drop", "internal", "external", "trusted", "home", "dmz", "public", "block"]
+    choices: [ "work", "drop", "internal", "external", "trusted", "home", "dmz", "public", "block" ]
   permanent:
     description:
       - "Should this configuration be in the running firewalld configuration or persist across reboots."
-    required: true
+    required: false
+    default: null
   immediate:
     description:
       - "Should this configuration be applied immediately, if set as permanent"
@@ -67,6 +68,7 @@ options:
     description:
       - "Should this port accept(enabled) or reject(disabled) connections."
     required: true
+    choices: [ "enabled", "disabled" ]
   timeout:
     description:
       - "The amount of time the rule should be in effect for when non-permanent."
@@ -74,8 +76,9 @@ options:
     default: 0
 notes:
   - Not tested on any Debian based system.
+  - Requires the python2 bindings of firewalld, who may not be installed by default if the distribution switched to python 3 
 requirements: [ 'firewalld >= 0.2.11' ]
-author: "Adam Miller (@maxamillion)" 
+author: "Adam Miller (@maxamillion)"
 '''
 
 EXAMPLES = '''
@@ -94,9 +97,13 @@ try:
     import firewall.config
     FW_VERSION = firewall.config.VERSION
 
+    from firewall.client import Rich_Rule
     from firewall.client import FirewallClient
     fw = FirewallClient()
-    HAS_FIREWALLD = True
+    if not fw.connected:
+        HAS_FIREWALLD = False
+    else:
+        HAS_FIREWALLD = True
 except ImportError:
     HAS_FIREWALLD = False
 
@@ -137,7 +144,7 @@ def set_port_disabled_permanent(zone, port, protocol):
 
 ####################
 # source handling
-#    
+#
 def get_source(zone, source):
     fw_zone = fw.config().getZoneByName(zone)
     fw_settings = fw_zone.getSettings()
@@ -150,11 +157,13 @@ def add_source(zone, source):
     fw_zone = fw.config().getZoneByName(zone)
     fw_settings = fw_zone.getSettings()
     fw_settings.addSource(source)
+    fw_zone.update(fw_settings)
 
 def remove_source(zone, source):
     fw_zone = fw.config().getZoneByName(zone)
     fw_settings = fw_zone.getSettings()
     fw_settings.removeSource(source)
+    fw_zone.update(fw_settings)
 
 ####################
 # service handling
@@ -190,12 +199,15 @@ def set_service_disabled_permanent(zone, service):
     fw_settings = fw_zone.getSettings()
     fw_settings.removeService(service)
     fw_zone.update(fw_settings)
-    
+
 
 ####################
 # rich rule handling
 #
 def get_rich_rule_enabled(zone, rule):
+    # Convert the rule string to standard format
+    # before checking whether it is present
+    rule = str(Rich_Rule(rule_str=rule))
     if rule in fw.getRichRules(zone):
         return True
     else:
@@ -210,6 +222,9 @@ def set_rich_rule_disabled(zone, rule):
 def get_rich_rule_enabled_permanent(zone, rule):
     fw_zone = fw.config().getZoneByName(zone)
     fw_settings = fw_zone.getSettings()
+    # Convert the rule string to standard format
+    # before checking whether it is present
+    rule = str(Rich_Rule(rule_str=rule))
     if rule in fw_settings.getRichRules():
         return True
     else:
@@ -248,7 +263,7 @@ def main():
         module.fail(msg='permanent is a required parameter')
 
     if not HAS_FIREWALLD:
-        module.fail_json(msg='firewalld required for this module')
+        module.fail_json(msg='firewalld and its python 2 module are required for this module')
 
     ## Pre-run version checking
     if FW_VERSION < "0.2.11":

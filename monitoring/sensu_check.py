@@ -36,7 +36,8 @@ options:
       - This is the key that is used to determine whether a check exists
     required: true
   state:
-    description: Whether the check should be present or not
+    description:
+      - Whether the check should be present or not
     choices: [ 'present', 'absent' ]
     required: false
     default: present
@@ -102,7 +103,8 @@ options:
     required: false
     default: []
   metric:
-    description: Whether the check is a metric
+    description:
+      - Whether the check is a metric
     choices: [ 'yes', 'no' ]
     required: false
     default: no
@@ -147,8 +149,15 @@ options:
       - The low threshhold for flap detection
     required: false
     default: null
+  custom:
+    version_added: "2.1"
+    description:
+      - A hash/dictionary of custom parameters for mixing to the configuration. 
+      - You can't rewrite others module parameters using this
+    required: false
+    default: {}
 requirements: [ ]
-author: Anders Ingemann
+author: "Anders Ingemann (@andsens)"
 '''
 
 EXAMPLES = '''
@@ -169,23 +178,28 @@ EXAMPLES = '''
 # Note that the check will still show up in the sensu dashboard,
 # to remove it completely you need to issue a DELETE request to the sensu api.
 - name: check disk
-  sensu_check: name=check_disk_capacity
+  sensu_check: name=check_disk_capacity state=absent
 '''
+
+try:
+    import json
+except ImportError:
+    try:
+        import simplejson as json
+    except ImportError:
+        # Let snippet from module_utils/basic.py return a proper error in this case
+        pass
 
 
 def sensu_check(module, path, name, state='present', backup=False):
     changed = False
     reasons = []
 
-    try:
-        import json
-    except ImportError:
-        import simplejson as json
-
+    stream = None
     try:
         try:
             stream = open(path, 'r')
-            config = json.load(stream.read())
+            config = json.load(stream)
         except IOError, e:
             if e.errno is 2:  # File not found, non-fatal
                 if state == 'absent':
@@ -250,6 +264,31 @@ def sensu_check(module, path, name, state='present', backup=False):
                     changed = True
                     reasons.append('`{opt}\' was removed'.format(opt=opt))
 
+        if module.params['custom']:
+          # Convert to json
+          custom_params = module.params['custom']
+          overwrited_fields = set(custom_params.keys()) & set(simple_opts + ['type','subdue','subdue_begin','subdue_end'])
+          if overwrited_fields:
+            msg = 'You can\'t overwriting standard module parameters via "custom". You are trying overwrite: {opt}'.format(opt=list(overwrited_fields))
+            module.fail_json(msg=msg)
+
+          for k,v in custom_params.items():
+            if k in config['checks'][name]:
+              if not config['checks'][name][k] == v:
+                changed = True
+                reasons.append('`custom param {opt}\' was changed'.format(opt=k))
+            else:
+              changed = True
+              reasons.append('`custom param {opt}\' was added'.format(opt=k))
+            check[k] = v
+          simple_opts += custom_params.keys()
+
+        # Remove obsolete custom params
+        for opt in set(config['checks'][name].keys()) - set(simple_opts + ['type','subdue','subdue_begin','subdue_end']):
+          changed = True
+          reasons.append('`custom param {opt}\' was deleted'.format(opt=opt))
+          del check[opt]
+
         if module.params['metric']:
             if 'type' not in check or check['type'] != 'metric':
                 check['type'] = 'metric'
@@ -313,6 +352,7 @@ def main():
                 'aggregate':    {'type': 'bool'},
                 'low_flap_threshold':  {'type': 'int'},
                 'high_flap_threshold': {'type': 'int'},
+                'custom':   {'type': 'dict'},
                 }
 
     required_together = [['subdue_begin', 'subdue_end']]

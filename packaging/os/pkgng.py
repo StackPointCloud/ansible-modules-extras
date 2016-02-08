@@ -85,7 +85,6 @@ EXAMPLES = '''
 '''
 
 
-import json
 import shlex
 import os
 import re
@@ -268,7 +267,7 @@ def main():
     module = AnsibleModule(
             argument_spec       = dict(
                 state           = dict(default="present", choices=["present","absent"], required=False),
-                name            = dict(aliases=["pkg"], required=True),
+                name            = dict(aliases=["pkg"], required=True, type='list'),
                 cached          = dict(default=False, type='bool'),
                 annotation      = dict(default="", required=False),
                 pkgsite         = dict(default="", required=False),
@@ -279,7 +278,7 @@ def main():
 
     p = module.params
 
-    pkgs = p["name"].split(",")
+    pkgs = p["name"]
 
     changed = False
     msgs = []

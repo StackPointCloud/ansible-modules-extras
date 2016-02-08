@@ -107,7 +107,12 @@ import os
 try:
     import json
 except ImportError:
-    import simplejson as json
+    try:
+        import simplejson as json
+    except ImportError:
+        # Let snippet from module_utils/basic.py return a proper error in this case
+        pass
+
 
 class Npm(object):
     def __init__(self, module, **kwargs):
@@ -250,7 +255,7 @@ def main():
         outdated = npm.list_outdated()
         if len(missing) or len(outdated):
             changed = True
-            npm.install()
+            npm.update()
     else: #absent
         installed, missing = npm.list()
         if name in installed:

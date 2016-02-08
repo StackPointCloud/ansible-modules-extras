@@ -39,6 +39,7 @@ options:
           - loop
           - btrfs
           - overlayfs
+          - zfs
         description:
           - Backend storage type for the container.
         required: false
@@ -447,13 +448,16 @@ LXC_BACKING_STORE = {
         'zfs_root'
     ],
     'btrfs': [
-        'lv_name', 'vg_name', 'thinpool', 'zfs_root'
+        'lv_name', 'vg_name', 'thinpool', 'zfs_root', 'fs_type', 'fs_size'
     ],
     'loop': [
         'lv_name', 'vg_name', 'thinpool', 'zfs_root'
     ],
     'overlayfs': [
         'lv_name', 'vg_name', 'fs_type', 'fs_size', 'thinpool', 'zfs_root'
+    ],
+    'zfs': [
+        'lv_name', 'vg_name', 'fs_type', 'fs_size', 'thinpool'
     ]
 }
 
@@ -633,9 +637,10 @@ class LxcContainerManagement(object):
             variables.pop(v, None)
 
         return_dict = dict()
+        false_values = [None, ''] + BOOLEANS_FALSE
         for k, v in variables.items():
             _var = self.module.params.get(k)
-            if not [i for i in [None, ''] + BOOLEANS_FALSE if i == _var]:
+            if _var not in false_values:
                 return_dict[v] = _var
         else:
             return return_dict
@@ -1679,7 +1684,7 @@ def main():
                 type='str'
             ),
             container_log=dict(
-                choices=BOOLEANS,
+                type='bool',
                 default='false'
             ),
             container_log_level=dict(
@@ -1691,11 +1696,11 @@ def main():
                 required=False
             ),
             clone_snapshot=dict(
-                choices=BOOLEANS,
+                type='bool',
                 default='false'
             ),
             archive=dict(
-                choices=BOOLEANS,
+                type='bool',
                 default='false'
             ),
             archive_path=dict(
