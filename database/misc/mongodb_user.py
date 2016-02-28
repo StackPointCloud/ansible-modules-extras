@@ -173,6 +173,8 @@ def user_add(module, client, db_name, user, password, roles):
 def user_remove(module, client, db_name, user):
     exists = user_find(client, user, db_name)
     if exists:
+        if module.check_mode:
+            module.exit_json(changed=True, user=user)
         db = client[db_name]
         db.remove_user(user)
     else:
@@ -213,7 +215,8 @@ def main():
             roles=dict(default=None, type='list'),
             state=dict(default='present', choices=['absent', 'present']),
             update_password=dict(default="always", choices=["always", "on_create"]),
-        )
+        ),
+        supports_check_mode=True
     )
 
     if not pymongo_found:
@@ -267,6 +270,9 @@ def main():
             password = None
             if list(map((lambda x: x['role']), uinfo.get('roles', []))) == roles:
                 module.exit_json(changed=False, user=user)
+
+        if module.check_mode:
+            module.exit_json(changed=True, user=user)
 
         try:
             user_add(module, client, db_name, user, password, roles)
