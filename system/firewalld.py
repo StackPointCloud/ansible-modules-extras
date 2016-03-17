@@ -291,7 +291,7 @@ def main():
         supports_check_mode=True
     )
     if module.params['source'] == None and module.params['permanent'] == None:
-        module.fail(msg='permanent is a required parameter')
+        module.fail_json(msg='permanent is a required parameter')
 
     if module.params['interface'] != None and module.params['zone'] == None:
         module.fail(msg='zone is a required parameter')
